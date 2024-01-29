@@ -1,209 +1,153 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-canvas.width = 800;
-canvas.height = 400;
-
-const background = new Image();
-background.src = "https://tse1.mm.bing.net/th?id=OIP.1qTMKwdpiGAbQPoIDnr04wHaEK&pid=Api&rs=1&c=1&qlt=95&w=211&h=118";
-
-background.onerror = function () {
-    console.error("Erro ao carregar a imagem de fundo.");
+const player = {
+  x: 50,
+  y: canvas.height - 30,
+  width: 20,
+  height: 20,
+  speed: 7,
+  jumpHeight: 300,
+  yVelocity: 0,
+  jumping: false,
+  lives: 3,
 };
 
-background.onload = function () {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
+const platforms = [];
+const obstacles = [];
 
-    const player = {
-        x: 50,
-        y: canvas.height - 70,
-        width: 60,
-        height: 60,
-        jumping: false,
-        jumpHeight: 100,
-        yVelocity: 0,
-        speed: 5,
-        sprite: img,
-        lives: 3,
-    };
+function gameLoop() {
+  updatePlayer();
+  updateObstacles();
 
-    const path = [];
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const platforms = [
-        { x: 0, y: canvas.height - 20, width: canvas.width, height: 20, imageSrc: "https://tse1.mm.bing.net/th?id=OIP.1qTMKwdpiGAbQPoIDnr04wHaEK&pid=Api&rs=1&c=1&qlt=95&w=211&h=118" },
-        // Adicione uma plataforma sólida no fundo
-        { x: 0, y: canvas.height - 10, width: canvas.width, height: 10 },
-        // ... (resto do código da plataforma)
-    ];
+  ctx.fillStyle = "blue";
+  ctx.fillRect(player.x, player.y, player.width, player.height);
 
-    const obstacles = [
-        { x: 200, y: canvas.height - 50, width: 40, height: 30 },
-        // ... (resto do código dos obstáculos)
-    ];
+  ctx.fillStyle = "green";
+  platforms.forEach(platform => {
+    ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+  });
 
-    function drawPlayer() {
-        ctx.drawImage(player.sprite, player.x, player.y, player.width, player.height);
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
-        ctx.lineWidth = 5;
-        ctx.lineJoin = "round";
-        ctx.beginPath();
-        for (let i = 0; i < path.length; i++) {
-            const point = path[i];
-            ctx.lineTo(point.x, point.y);
-        }
-        ctx.stroke();
+  ctx.fillStyle = "red";
+  obstacles.forEach(obstacle => {
+    ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+  });
+
+  ctx.fillStyle = "black";
+  ctx.font = "20px Arial";
+  ctx.fillText("Lives: " + player.lives, 10, 20);
+
+  requestAnimationFrame(gameLoop);
+}
+
+function handleKeyPress(event) {
+  if (event.code === "KeyA" && player.x > 0) {
+    player.x -= player.speed;
+  } else if (event.code === "KeyD" && player.x < canvas.width - player.width) {
+    player.x += player.speed;
+  } else if (event.code === "Space" && !player.jumping) {
+    player.jumping = true;
+    player.yVelocity = -Math.sqrt(2 * player.jumpHeight * 0.5);
+  }
+}
+
+function handleKeyRelease(event) {
+  if (event.code === "Space") {
+    player.jumping = false;
+  }
+}
+
+function updatePlayer() {
+  // Simulate gravity
+  player.yVelocity += 0.5;
+  player.y += player.yVelocity;
+
+  // Check for collisions with platforms
+  platforms.forEach(platform => {
+    if (
+      player.x < platform.x + platform.width &&
+      player.x + player.width > platform.x &&
+      player.y + player.height > platform.y &&
+      player.y < platform.y + platform.height
+    ) {
+      player.y = platform.y - player.height;
+      player.yVelocity = 0;
+      player.jumping = false;
     }
+  });
 
-    function updatePlayer() {
-        player.yVelocity += 0.5;
-        player.y += player.yVelocity;
+  // Check for collisions with obstacles
+  obstacles.forEach(obstacle => {
+    if (
+      player.x < obstacle.x + obstacle.width &&
+      player.x + player.width > obstacle.x &&
+      player.y + player.height > obstacle.y &&
+      player.y < obstacle.y + obstacle.height
+    ) {
+      player.lives--;
 
-        if (leftPressed()) {
-            player.x -= player.speed;
-        }
-        if (rightPressed()) {
-            player.x += player.speed;
-        }
-
-        path.push({ x: player.x + player.width / 2, y: player.y + player.height / 2 });
-        if (path.length > 20) {
-            path.shift();
-        }
-
-        platforms.forEach(platform => {
-            if (
-                player.x < platform.x + platform.width &&
-                player.x + player.width > platform.x &&
-                player.y < platform.y + platform.height &&
-                player.y + player.height > platform.y
-            ) {
-                if (platform.slope) {
-                    const platformTopY = platform.y + (platform.slope > 0 ? 0 : platform.height);
-                    const playerOnPlatformY = player.y + player.height;
-                    if (playerOnPlatformY > platformTopY) {
-                        player.y = platformTopY - player.height;
-                        player.yVelocity = 0;
-                        player.jumping = false;
-                        player.jumpHeight = 100;
-                    }
-                } else {
-                    player.y = platform.y - player.height;
-                    player.yVelocity = 0;
-                    player.jumping = false;
-                    player.jumpHeight = 100;
-                }
-            }
-        });
-
-        obstacles.forEach(obstacle => {
-            if (
-                player.x < obstacle.x + obstacle.width &&
-                player.x + player.width > obstacle.x &&
-                player.y < obstacle.y + obstacle.height &&
-                player.y + player.height > obstacle.y
-            ) {
-                player.lives--;
-                player.x = 50;
-                player.y = canvas.height - 70;
-                player.yVelocity = 0;
-                if (player.lives <= 0) {
-                    console.log("Game Over");
-                }
-            }
-        });
-
-        if (player.y > canvas.height) {
-            player.x = 50;
-            player.y = canvas.height - 70;
-            player.yVelocity = 0;
-            player.lives--;
-            if (player.lives <= 0) {
-                console.log("Game Over");
-            }
-        }
+      if (player.lives <= 0) {
+        alert("Game Over");
+        resetGame();
+      } else {
+        player.x = 50;
+        player.y = canvas.height - 30;
+      }
     }
+  });
 
-    function drawPlatforms() {
-        platforms.forEach(platform => {
-            const platformImage = new Image();
-            platformImage.crossOrigin = "anonymous";
-            platformImage.src = platform.imageSrc;
+  // Keep the player within the canvas
+  if (player.y > canvas.height - player.height) {
+    player.y = canvas.height - player.height;
+    player.yVelocity = 0;
+    player.jumping = false;
+  }
 
-            if (platform.slope) {
-                ctx.save();
-                ctx.transform(1, 0, platform.slope, 1, platform.x, platform.y);
-                ctx.drawImage(platformImage, 0, 0, platform.width, platform.height);
-                ctx.restore();
-            } else {
-                ctx.drawImage(platformImage, platform.x, platform.y, platform.width, platform.height);
-            }
-        });
+  // Add some friction to slow down the player gradually
+  player.yVelocity *= 0.9;
+}
+
+function updateObstacles() {
+  obstacles.forEach(obstacle => {
+    obstacle.y += 2;
+
+    if (obstacle.y > canvas.height) {
+      obstacle.y = 0;
+      obstacle.x = Math.random() * (canvas.width - obstacle.width);
     }
+  });
+}
 
-    function drawObstacles() {
-        ctx.fillStyle = "red";
-        obstacles.forEach(obstacle => {
-            ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-        });
-    }
+function resetGame() {
+  player.lives = 3;
+  player.x = 50;
+  player.y = canvas.height - 30;
 
-    function drawLives() {
-        ctx.fillStyle = "white";
-        ctx.font = "20px Arial";
-        ctx.fillText("Lives: " + player.lives, 10, 20);
-    }
+  platforms.length = 0;
+  obstacles.length = 0;
 
-    function keyDownHandler(event) {
-        if (event.code === "Space" && !player.jumping) {
-            player.jumping = true;
-            player.yVelocity = -10;
-        }
-    }
+  createPlatform(0, canvas.height - 10, canvas.width, 10);
+  createPlatform(200, 300, 100, 10);
+  createPlatform(400, 250, 100, 10);
+  createPlatform(600, 200, 100, 10);
 
-    function leftPressed() {
-        return keyState["KeyA"];
-    }
-    function leftPressed() {
-        return keyState["KeyA"];
-    }
+  createObstacle(100, canvas.height - 20, 20, 20);
+  createObstacle(300, canvas.height - 20, 20, 20);
+  createObstacle(500, canvas.height - 20, 20, 20);
+}
 
-    function rightPressed() {
-        return keyState["KeyD"];
-    }
+function createPlatform(x, y, width, height) {
+  platforms.push({ x, y, width, height });
+}
 
-    const keyState = {};
+function createObstacle(x, y, width, height) {
+  obstacles.push({ x, y, width, height });
+}
 
-    document.addEventListener("keydown", (event) => {
-        keyState[event.code] = true;
-    });
+document.addEventListener("keydown", handleKeyPress);
+document.addEventListener("keyup", handleKeyRelease);
 
-    document.addEventListener("keyup", (event) => {
-        keyState[event.code] = false;
-    });
-
-    function gameLoop() {
-        updatePlayer();
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        ctx.fillStyle = "#000000";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        drawPlatforms();
-        drawObstacles();
-        drawPlayer();
-        drawLives();
-
-        requestAnimationFrame(gameLoop);
-    }
-
-    player.sprite.onload = function () {
-        gameLoop();
-    };
-
-    player.sprite.src = "https://tse2.mm.bing.net/th?id=OIP.LShNUkMPdfwzn46OVHwOfgHaEH&pid=Api&P=0&h=220";
-};
-
-// Carregue a imagem de fundo após definir os handlers onload e onerror
-background.src;
+resetGame();
+gameLoop();
